@@ -14,6 +14,7 @@ import {workspace, window, commands, languages, ExtensionContext, env,
 
 import {
   LanguageClientOptions,
+  PublishDiagnosticsParams,
   RequestType,
   ServerOptions,
   TextDocumentIdentifier,
@@ -56,12 +57,14 @@ let client: Client;
 
 export type McpPromiseBox = {
     promise: Promise<string> | undefined,
-    setValue: ((value: string) => void) | undefined
+    setValue: ((value: string) => void) | undefined,
+    currentDocumentURI: string | undefined
 };
 
 let mcpPromiseBox: McpPromiseBox = {
     promise: undefined,
-    setValue: undefined
+    setValue: undefined,
+    currentDocumentURI: undefined
 };
 
 export function activate(context: ExtensionContext) {
@@ -169,7 +172,7 @@ export function activate(context: ExtensionContext) {
         const searchProvider = new SearchViewProvider(context.extensionUri, client);
         context.subscriptions.push(window.registerWebviewViewProvider(SearchViewProvider.viewType, searchProvider));
 
-        if (workspace.getConfiguration('vscoq.mcp.use')) {
+        if (workspace.getConfiguration('vscoq.mcp').use) {
             // Start MCP server
             startMCPServer(context, mcpPromiseBox, client);
         }
@@ -291,6 +294,34 @@ export function activate(context: ExtensionContext) {
             client.updateHightlights();
         });
 
+        // client.onNotification("documenttextDocument/publishDiagnostics", (notification: PublishDiagnosticsParams) => {
+        //     console.log('MCP Debug: publishDiagnostics received:', notification);
+            
+        //     // If we have an active MCP promise and there are errors, resolve with error info
+        //     if (mcpPromiseBox.setValue && notification.diagnostics && notification.diagnostics.length > 0) {
+        //         const errors = notification.diagnostics.filter(diag => diag.severity === 1); // Error severity
+                
+        //         if (errors.length > 0) {
+        //             const errorInfo = errors.map(error => ({
+        //                 message: error.message,
+        //                 range: error.range,
+        //                 severity: error.severity,
+        //                 source: error.source
+        //             }));
+                    
+        //             const errorResponse = JSON.stringify({
+        //                 error: true,
+        //                 diagnostics: errorInfo,
+        //                 uri: notification.uri
+        //             });
+                    
+        //             console.log('MCP Debug: Resolving promise with error:', errorResponse);
+        //             mcpPromiseBox.setValue(errorResponse);
+        //             mcpPromiseBox.setValue = undefined; // Clear to avoid double resolution
+        //         }
+        //     }
+        // });
+
         client.onNotification("vscoq/moveCursor", (notification: MoveCursorNotification) => {
             const {uri, range} = notification;
             const editors = window.visibleTextEditors.filter(editor => {
@@ -324,8 +355,11 @@ export function activate(context: ExtensionContext) {
                     const gStr = stringOfPpString(goal.goal);
                     return [hypsStr, gStr].toString();
                 });
-                const str = JSON.stringify({ message: msgStr, goal: goalStr });
+                const highlightEnds = client.getHighlights(mcpPromiseBox.currentDocumentURI ? String(mcpPromiseBox.currentDocumentURI) : "");
+                const highlightEnd = highlightEnds ? highlightEnds[0].end : "";
+                const str = JSON.stringify({ message: msgStr, interpretedUpTo: highlightEnd, goal: goalStr });
                 mcpPromiseBox.setValue(str);
+                mcpPromiseBox.setValue = undefined; // Clear to avoid double resolution
             }
         });
 
