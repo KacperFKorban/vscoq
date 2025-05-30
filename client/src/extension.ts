@@ -9,7 +9,8 @@ import {workspace, window, commands, languages, ExtensionContext, env,
   extensions,
   StatusBarAlignment,
   MarkdownString,
-  WorkspaceEdit
+  WorkspaceEdit,
+  Position
 } from 'vscode';
 
 import {
@@ -294,7 +295,7 @@ export function activate(context: ExtensionContext) {
             client.updateHightlights();
         });
 
-        // client.onNotification("documenttextDocument/publishDiagnostics", (notification: PublishDiagnosticsParams) => {
+        // client.onNotification("textDocument/publishDiagnostics", (notification: PublishDiagnosticsParams) => {
         //     console.log('MCP Debug: publishDiagnostics received:', notification);
             
         //     // If we have an active MCP promise and there are errors, resolve with error info
@@ -356,7 +357,7 @@ export function activate(context: ExtensionContext) {
                     return [hypsStr, gStr].toString();
                 });
                 const highlightEnds = client.getHighlights(mcpPromiseBox.currentDocumentURI ? String(mcpPromiseBox.currentDocumentURI) : "");
-                const highlightEnd = highlightEnds ? highlightEnds[0].end : "";
+                const highlightEnd = highlightEnds ? new Position(highlightEnds[0].end.line + 1, highlightEnds[0].end.character + 1) : "";
                 const str = JSON.stringify({ message: msgStr, interpretedUpTo: highlightEnd, goal: goalStr });
                 mcpPromiseBox.setValue(str);
                 mcpPromiseBox.setValue = undefined; // Clear to avoid double resolution
