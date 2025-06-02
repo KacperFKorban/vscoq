@@ -51,7 +51,7 @@ import {
 import { DocumentStateViewProvider } from './panels/DocumentStateViewProvider';
 import VsCoqToolchainManager, {ToolchainError, ToolChainErrorCode} from './utilities/toolchain';
 import { QUICKFIX_COMMAND, CoqWarningQuickFix } from './QuickFixProvider';
-import { startMCPServer } from './mcpServer';
+import { getPrettifiedProofView, startMCPServer } from './mcpServer';
 import { stringOfPpString } from './utilities/pputils';
 
 let client: Client;
@@ -66,6 +66,14 @@ let mcpPromiseBox: McpPromiseBox = {
     promise: undefined,
     setValue: undefined,
     currentDocumentURI: undefined
+};
+
+export type ProofState = {
+    lastProofViewNotification: ProofViewNotification | undefined
+};
+
+let proofState: ProofState = {
+    lastProofViewNotification: undefined
 };
 
 export function activate(context: ExtensionContext) {
@@ -175,7 +183,7 @@ export function activate(context: ExtensionContext) {
 
         if (workspace.getConfiguration('vscoq.mcp').use) {
             // Start MCP server
-            startMCPServer(context, mcpPromiseBox, client);
+            startMCPServer(context, mcpPromiseBox, proofState, client);
         }
 
         const documentStateProvider = new DocumentStateViewProvider(client); 
@@ -295,34 +303,6 @@ export function activate(context: ExtensionContext) {
             client.updateHightlights();
         });
 
-        // client.onNotification("textDocument/publishDiagnostics", (notification: PublishDiagnosticsParams) => {
-        //     console.log('MCP Debug: publishDiagnostics received:', notification);
-            
-        //     // If we have an active MCP promise and there are errors, resolve with error info
-        //     if (mcpPromiseBox.setValue && notification.diagnostics && notification.diagnostics.length > 0) {
-        //         const errors = notification.diagnostics.filter(diag => diag.severity === 1); // Error severity
-                
-        //         if (errors.length > 0) {
-        //             const errorInfo = errors.map(error => ({
-        //                 message: error.message,
-        //                 range: error.range,
-        //                 severity: error.severity,
-        //                 source: error.source
-        //             }));
-                    
-        //             const errorResponse = JSON.stringify({
-        //                 error: true,
-        //                 diagnostics: errorInfo,
-        //                 uri: notification.uri
-        //             });
-                    
-        //             console.log('MCP Debug: Resolving promise with error:', errorResponse);
-        //             mcpPromiseBox.setValue(errorResponse);
-        //             mcpPromiseBox.setValue = undefined; // Clear to avoid double resolution
-        //         }
-        //     }
-        // });
-
         client.onNotification("vscoq/moveCursor", (notification: MoveCursorNotification) => {
             const {uri, range} = notification;
             const editors = window.visibleTextEditors.filter(editor => {
@@ -345,21 +325,10 @@ export function activate(context: ExtensionContext) {
             const editor = window.activeTextEditor ? window.activeTextEditor : window.visibleTextEditors[0];
             const autoDisplay = workspace.getConfiguration('vscoq.goals').auto;
             GoalPanel.proofViewNotification(context.extensionUri, editor, proofView, autoDisplay);
+            proofState.lastProofViewNotification = proofView;
             if (mcpPromiseBox.setValue) {
-                const msgStr = proofView.messages.map((msg) => {
-                    return stringOfPpString(msg[1]);
-                }).toString();
-                const goalStr = proofView.proof?.goals?.map((goal) => {
-                    const hypsStr = goal.hypotheses.map((h) => {
-                        return stringOfPpString(h);
-                    }).toString();
-                    const gStr = stringOfPpString(goal.goal);
-                    return [hypsStr, gStr].toString();
-                });
-                const highlightEnds = client.getHighlights(mcpPromiseBox.currentDocumentURI ? String(mcpPromiseBox.currentDocumentURI) : "");
-                const highlightEnd = highlightEnds ? new Position(highlightEnds[0].end.line + 1, highlightEnds[0].end.character + 1) : "";
-                const str = JSON.stringify({ message: msgStr, interpretedUpTo: highlightEnd, goal: goalStr });
-                mcpPromiseBox.setValue(str);
+                const res = getPrettifiedProofView(client, proofView, mcpPromiseBox.currentDocumentURI);
+                mcpPromiseBox.setValue(res);
                 mcpPromiseBox.setValue = undefined; // Clear to avoid double resolution
             }
         });
