@@ -51,26 +51,6 @@ module Args = struct
   type get_proof_state = {
     uri : string;
   } [@@deriving yojson]
-
-  type edit_line = {
-    uri : string;
-    startLine : int;
-    endLine : int;
-    newText : string;
-  } [@@deriving yojson]
-
-  type update_proof = {
-    uri : string;
-  } [@@deriving yojson]
-
-  type apply_edit = {
-    uri : string;
-    startLine : int;
-    startCharacter : int;
-    endLine : int;
-    endCharacter : int;
-    newText : string;
-  } [@@deriving yojson]
 end
 
 module Schema = struct
@@ -105,31 +85,6 @@ module Schema = struct
     ~properties:[("uri", uri_prop)]
     ~required:["uri"]
 
-  let edit_line = JsonSchema.make
-    ~properties:[
-      ("uri", uri_prop);
-      ("startLine", property ~type_:"integer" ~description:"First line to replace (0-indexed, inclusive)");
-      ("endLine", property ~type_:"integer" ~description:"Last line to replace (0-indexed, inclusive)");
-      ("newText", property ~type_:"string" ~description:"The new text to insert (replaces the entire line range)");
-    ]
-    ~required:["uri"; "startLine"; "endLine"; "newText"]
-
-  let update_proof = JsonSchema.make
-    ~properties:[
-      ("uri", uri_prop);
-    ]
-    ~required:["uri"]
-
-  let apply_edit = JsonSchema.make
-    ~properties:[
-      ("uri", uri_prop);
-      ("startLine", property ~type_:"integer" ~description:"Start line of the range to replace (0-indexed)");
-      ("startCharacter", property ~type_:"integer" ~description:"Start character of the range (0-indexed)");
-      ("endLine", property ~type_:"integer" ~description:"End line of the range (0-indexed)");
-      ("endCharacter", property ~type_:"integer" ~description:"End character of the range (0-indexed)");
-      ("newText", property ~type_:"string" ~description:"The new text to insert");
-    ]
-    ~required:["uri"; "startLine"; "startCharacter"; "endLine"; "endCharacter"; "newText"]
 end
 
 module Definitions = struct
@@ -172,21 +127,6 @@ module Definitions = struct
     ~description:"Get the current proof state without executing any commands. Returns goals, hypotheses, and messages."
     ~inputSchema:Schema.uri_only
 
-  let edit_line = Tool.make
-    ~name:"edit_line"
-    ~description:"Replace entire lines in the document. Replaces lines from startLine to endLine (inclusive, 0-indexed) with newText. The newText should include trailing newlines. Both the in-memory document state and the file on disk are updated. Prefer this over apply_edit when possible."
-    ~inputSchema:Schema.edit_line
-
-  let update_proof = Tool.make
-    ~name:"update_proof"
-    ~description:"Update the proof state by re-parsing the document and re-executing to the current position. Use this after applying edits externally."
-    ~inputSchema:Schema.update_proof
-
-  let apply_edit = Tool.make
-    ~name:"apply_edit"
-    ~description:"Apply a character-level text edit to the document. Replaces text in the specified range with newText. WARNING: LLMs are bad at counting character offsets accurately, which leads to buffer corruption. Prefer edit_line instead unless you need sub-line precision."
-    ~inputSchema:Schema.apply_edit
-
   let all : McpBase.Tool.t list = [
     open_document;
     close_document;
@@ -195,8 +135,5 @@ module Definitions = struct
     step_forward;
     step_backward;
     get_proof_state;
-    edit_line;
-    update_proof;
-    apply_edit;
   ]
 end

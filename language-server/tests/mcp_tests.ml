@@ -276,8 +276,6 @@ let%test_unit "mcp.edit.multiline_edit" =
   (* Test editing across multiple lines using line/character positions *)
   let st, init_events = em_init_test_doc ~text:"Definition x := 1.\nDefinition y := 2." in
   (* Get raw document to understand positions *)
-  let doc = DocumentManager.Internal.document st in
-  let raw_doc = Document.raw_document doc in
   (* Edit: change line 1 "Definition y := 2." to "Definition y := 42." *)
   (* Line 1 starts at character 18 (after "Definition x := 1.\n") *)
   (* "Definition y := 2." is at positions 18-36 approximately *)
