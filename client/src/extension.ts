@@ -56,6 +56,7 @@ import VsRocqToolchainManager, {
     ToolChainErrorCode,
 } from "./utilities/toolchain";
 import { checkVersion, getRocqdocUrl } from "./utilities/versioning";
+import { VoiceoverController } from "./voiceover/VoiceoverController";
 
 let client: Client;
 
@@ -214,6 +215,8 @@ export function activate(context: ExtensionContext) {
 
         // Create the language client and start the client.
         client = new Client(serverOptions, clientOptions);
+        const voiceover = new VoiceoverController();
+        context.subscriptions.push(voiceover);
 
         //register the search view provider
         const searchProvider = new SearchViewProvider(
@@ -272,6 +275,7 @@ export function activate(context: ExtensionContext) {
         };
 
         registerVsrocqTextCommand("reset", (editor) => {
+            voiceover.stop();
             const uri = editor.document.uri;
             const textDocument = TextDocumentIdentifier.create(uri.toString());
             const params: ResetRocqRequest = { textDocument };
@@ -312,21 +316,24 @@ export function activate(context: ExtensionContext) {
         registerVsrocqTextCommand("expandAllQueries", () =>
             searchProvider.expandAll(),
         );
-        registerVsrocqTextCommand("interrupt", (editor) =>
-            sendInterrupt(editor, client),
-        );
+        registerVsrocqTextCommand("interrupt", (editor) => {
+            voiceover.stop();
+            sendInterrupt(editor, client);
+        });
         registerVsrocqTextCommand("interpretToPoint", (editor) =>
             sendInterpretToPoint(editor, client),
         );
         registerVsrocqTextCommand("interpretToEnd", (editor) =>
             sendInterpretToEnd(editor, client),
         );
-        registerVsrocqTextCommand("stepForward", (editor) =>
-            sendStepForward(editor, client),
-        );
-        registerVsrocqTextCommand("stepBackward", (editor) =>
-            sendStepBackward(editor, client),
-        );
+        registerVsrocqTextCommand("stepForward", (editor) => {
+            voiceover.recordStepStart(editor.document);
+            sendStepForward(editor, client);
+        });
+        registerVsrocqTextCommand("stepBackward", (editor) => {
+            voiceover.stop();
+            sendStepBackward(editor, client);
+        });
         registerVsrocqTextCommand("documentState", async (editor) => {
             documentStateProvider.setDocumentUri(editor.document.uri);
 
@@ -376,8 +383,23 @@ export function activate(context: ExtensionContext) {
                 : window.visibleTextEditors[0];
             GoalPanel.displayProofView(context.extensionUri, editor);
         });
+        context.subscriptions.push(
+            commands.registerCommand("extension.rocq.toggleVoiceover", () => {
+                voiceover.toggle();
+            }),
+        );
 
         client.onNotification("prover/updateHighlights", (notification) => {
+            const uri = notification.uri.toString();
+            const editor = window.visibleTextEditors.find((editor) => {
+                return editor.document.uri.toString() === uri;
+            });
+            voiceover.observeProcessedRanges(
+                uri,
+                notification.processedRange,
+                editor?.document,
+            );
+
             client.saveHighlights(
                 notification.uri,
                 notification.preparedRange,
@@ -506,6 +528,15 @@ Path: \`${rocqTM.getVsRocqTopPath()}\`
 
                     if (event.affectsConfiguration("vsrocq.goals.maxDepth")) {
                         GoalPanel.changeGoalDisplayDepth();
+                    }
+
+                    if (
+                        event.affectsConfiguration(
+                            "vsrocq.voiceover.enabled",
+                        ) &&
+                        !voiceover.enabled
+                    ) {
+                        voiceover.stop();
                     }
                 }),
             );

@@ -16,6 +16,7 @@
   "workspaces": ["pp-display", "goal-view-ui", "search-ui", "."],
   "dependencies": {
     "compare-versions": "^6.0.0-rc.1",
+    "say": "^0.16.0",
     "vscode-languageclient": "^9.0.1",
     "which": "^6.0.1"
   },
@@ -261,6 +262,32 @@
         }
       },
       {
+        "title": "Tutorial voiceover",
+        "type": "object",
+        "properties": {
+          "vsrocq.voiceover.enabled": {
+            "scope": "window",
+            "type": "boolean",
+            "default": false,
+            "description": "Read Rocq comments aloud while stepping through tutorials."
+          },
+          "vsrocq.voiceover.voice": {
+            "scope": "window",
+            "type": "string",
+            "default": "",
+            "description": "System text-to-speech voice to use for Rocq tutorial voiceover. Leave empty to use the system default voice."
+          },
+          "vsrocq.voiceover.speed": {
+            "scope": "window",
+            "type": "number",
+            "default": 1,
+            "minimum": 0.5,
+            "maximum": 2,
+            "description": "Speaking speed for Rocq tutorial voiceover. 1 is the system default speed."
+          }
+        }
+      },
+      {
         "title": "Code Completion",
         "type": "object",
         "properties": {
@@ -392,6 +419,12 @@
         "icon": "$(arrow-up)"
       },
       {
+        "command": "extension.rocq.toggleVoiceover",
+        "title": "Tutorial: Toggle Voiceover",
+        "category": "Rocq",
+        "icon": "$(unmute)"
+      },
+      {
         "command": "extension.rocq.displayProofView",
         "title": "Display Proof View",
         "category": "Rocq",
@@ -492,6 +525,11 @@
           "when": "resourceLangId == rocq",
           "submenu": "vsrocq.menu.doc",
           "group": "2_documentation@0"
+        },
+        {
+          "when": "resourceLangId == rocq",
+          "command": "extension.rocq.toggleVoiceover",
+          "group": "2_documentation@1"
         }
       ],
       "vsrocq.menu.doc": [
