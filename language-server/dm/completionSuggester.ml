@@ -20,6 +20,7 @@ module CompactedDecl = Ppconstr.CompactedDecl
 [%%endif]
 open Printer
 open EConstr
+open Libnames
 open Names
 open Types
 
@@ -305,10 +306,70 @@ module SelectiveUnification = struct
 
   let rank = selectiveRank
 end
+module NameBased = struct
+  let contains haystack needle =
+    try
+      ignore (Str.search_forward (Str.regexp_string needle) haystack 0);
+      true
+    with Not_found ->
+      false
 
-let rank_choices (options: Settings.Completion.t) (goal, goal_evar) sigma env lemmas = 
+  let starts_with s prefix =
+    let prefix_len = String.length prefix in
+    String.length s >= prefix_len && String.sub s 0 prefix_len = prefix
+
+  let suffix_after_last_dot s =
+    try
+      let i = String.rindex s '.' in
+      String.sub s (i + 1) (String.length s - i - 1)
+    with Not_found ->
+      s
+
+  let item_name item = Pp.string_of_ppcmds (pr_global item.CompletionItems.ref)
+
+  let score_name fragment name =
+    if fragment = "" then 4
+    else
+      let fragment_lower = String.lowercase_ascii fragment in
+      let name_lower = String.lowercase_ascii name in
+      if starts_with name fragment then 0
+      else if starts_with name_lower fragment_lower then 1
+      else if contains name fragment then 2
+      else if contains name_lower fragment_lower then 3
+      else 5
+
+  let score_item fragment i item =
+    let name = item_name item in
+    let short_name = suffix_after_last_dot name in
+    let path = string_of_path item.CompletionItems.path in
+    let score =
+      List.fold_left min max_int [
+        score_name fragment name;
+        score_name fragment short_name;
+        score_name fragment path;
+      ]
+    in
+    (score, String.length name, name, i, item)
+
+  let rank fragment (lemmas : CompletionItems.completion_item list) : CompletionItems.completion_item list =
+    lemmas
+    |> List.mapi (score_item fragment)
+    |> List.stable_sort (fun (score1, len1, name1, i1, _) (score2, len2, name2, i2, _) ->
+      match compare score1 score2 with
+      | 0 ->
+        if score1 >= 4 then compare i1 i2
+        else
+          (match compare len1 len2 with
+          | 0 -> String.compare name1 name2
+          | c -> c)
+      | c -> c)
+    |> List.map (fun (_, _, _, _, item) -> item)
+end
+
+let rank_choices (options: Settings.Completion.t) fragment (goal, goal_evar) sigma env lemmas = 
   let open Settings.Completion.RankingAlgoritm in
   match options.algorithm with
+  | NameBased -> NameBased.rank fragment lemmas
   | SplitTypeIntersection -> TypeIntersection.rank goal sigma env lemmas
   | StructuredSplitUnification -> SelectiveUnification.rank options goal sigma env (Structured.rank options (goal, goal_evar) sigma env lemmas)
 
@@ -320,12 +381,16 @@ let get_goal_type_opt env Proof.{ goals; sigma; _ } =
     Evd.evar_concl evi, sigma, env, goal
     )
 
-let get_completion_items env proof lemmas options =
+let get_completion_items env proof lemmas (options: Settings.Completion.t) ~fragment =
   try 
-    match get_goal_type_opt env proof with
-    | None -> lemmas
-    | Some (goal, sigma, env, goal_evar) ->
-        rank_choices options (goal, goal_evar) sigma env lemmas
+    let open Settings.Completion.RankingAlgoritm in
+    match options.algorithm with
+    | NameBased -> NameBased.rank fragment lemmas
+    | SplitTypeIntersection | StructuredSplitUnification ->
+      match get_goal_type_opt env proof with
+      | None -> lemmas
+      | Some (goal, sigma, env, goal_evar) ->
+          rank_choices options fragment (goal, goal_evar) sigma env lemmas
   with e -> 
     log (fun () -> "Ranking of lemmas failed: " ^ (Printexc.to_string e));
     lemmas
@@ -344,7 +409,7 @@ let get_lemmas sigma env =
   generic_search env sigma display;
   results.contents
 
-let get_completions options st =
+let get_completions options st ~fragment =
   Vernacstate.unfreeze_full_state st;
   match st.interp.lemmas with
   | None -> None
@@ -353,4 +418,4 @@ let get_completions options st =
     let env = Global.env () in
     let sigma = proof.sigma in
     let lemmas = get_lemmas sigma env in
-    Some (get_completion_items env proof lemmas options)
+    Some (get_completion_items env proof lemmas options ~fragment)

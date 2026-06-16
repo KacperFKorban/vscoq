@@ -187,7 +187,7 @@ After installation and activation of the extension:
 
 #### Code completion (experimental)
 * `"vsrocq.completion.enable": bool` -- Toggle code completion (defaults to `false`)
-* `"vsrocq.completion.algorithm": StructuredSplitUnification | SplitTypeIntersection` -- Which completion algorithm to use
+* `"vsrocq.completion.algorithm": StructuredSplitUnification | SplitTypeIntersection | NameBased` -- Which completion algorithm to use
 * `"vsrocq.completion.unificationLimit": int` -- Sets the limit for how many theorems unification is attempted
 
 #### Diagnostics

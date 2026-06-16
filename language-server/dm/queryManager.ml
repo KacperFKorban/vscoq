@@ -229,9 +229,9 @@ let print ~vs ~pattern =
   let udecl = None in (*TODO*)
   Ok (pp_of_rocqpp @@ print_name env sigma qid udecl)
 
-let get_completions ~vs =
+let get_completions ~vs ~fragment =
   let settings = ExecutionManager.get_options () in
-  match CompletionSuggester.get_completions settings.completion_options vs with
+  match CompletionSuggester.get_completions settings.completion_options vs ~fragment with
   | None -> 
       log (fun () -> "No completions available");
       []
@@ -288,6 +288,6 @@ let about ~doc_id ~vs ~pattern =
   ProverThread.try_run ~doc_id ~name:"about" ~timeout (fun () -> about vs ~pattern) |>
   to_types_error
 
-let get_completions ~doc_id ~vs =
-  ProverThread.try_run ~doc_id ~name:"get_completions" ~timeout:0.5 (fun () -> get_completions ~vs) |>
+let get_completions ~doc_id ~vs ~fragment =
+  ProverThread.try_run ~doc_id ~name:"get_completions" ~timeout:0.5 (fun () -> get_completions ~vs ~fragment) |>
   to_list

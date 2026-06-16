@@ -65,7 +65,8 @@ interface Goals {
 ```typescript
 enum RankingAlgorithm {
     SplitTypeIntersection = 0, 
-    StructuredSplitUnification
+    StructuredSplitUnification,
+    NameBased
 }
 
 interface Completion {

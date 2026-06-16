@@ -282,11 +282,13 @@
             "type": "number",
             "enum": [
               0,
-              1
+              1,
+              2
             ],
             "enumItemLabels": [
               "SplitTypeIntersection",
-              "StructuredSplitUnification"
+              "StructuredSplitUnification",
+              "NameBased"
             ],
             "default": 1,
             "description": "Configures the ranking algorithm for auto completions in rocq."

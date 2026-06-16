@@ -102,6 +102,23 @@ let word_at_position raw pos : string option =
   with _ ->
     None
 
+let is_completion_char = function
+  | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '_' | '\'' | '.' -> true
+  | _ -> false
+
+let completion_fragment_at_position raw pos : string =
+  try
+    let stop = loc_of_position raw pos in
+    let rec find_start i =
+      if i <= 0 then 0
+      else if is_completion_char raw.text.[i - 1] then find_start (i - 1)
+      else i
+    in
+    let start = find_start stop in
+    String.sub raw.text start (stop - start)
+  with _ ->
+    ""
+
 let string_in_range raw start end_ =
   try
     String.sub raw.text start (end_ - start)

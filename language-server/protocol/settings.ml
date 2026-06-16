@@ -161,14 +161,17 @@ module Completion = struct
     type t = 
     | SplitTypeIntersection
     | StructuredSplitUnification
-  
+    | NameBased
+   
     let yojson_of_t = function  
     | SplitTypeIntersection -> `Int 0
     | StructuredSplitUnification -> `Int 1
-  
+    | NameBased -> `Int 2
+   
     let t_of_yojson = function
     | `Int 0 -> SplitTypeIntersection
     | `Int 1 -> StructuredSplitUnification
+    | `Int 2 -> NameBased
     | _ -> Yojson.json_error @@ "invalid value "
   
   end
