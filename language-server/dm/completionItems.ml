@@ -37,9 +37,17 @@ let mk_completion_item sigma ref env (c : constr) : completion_item =
     debug_info = "";
   }
 
-let pp_completion_item (item : completion_item) : (string * string * string * string) =
+let suffix_after_last_dot s =
+  match String.rindex_opt s '.' with
+  | Some i -> String.sub s (i + 1) (String.length s - i - 1)
+  | None -> s
+
+let insert_text ~fragment name =
+  if String.contains fragment '.' then suffix_after_last_dot name else name
+
+let pp_completion_item ?(fragment="") (item : completion_item) : (string * string * string * string) =
   let pr = pr_global item.ref in
   let name = Pp.string_of_ppcmds pr in
   let path = string_of_path item.path ^ "\n" ^ item.debug_info in
   let typ = Pp.string_of_ppcmds (pr_ltype_env item.env item.sigma item.typ) in
-  (Printf.sprintf "%s%s" (symbol_prefix item.completes) name, name, typ, path)
+  (Printf.sprintf "%s%s" (symbol_prefix item.completes) name, insert_text ~fragment name, typ, path)

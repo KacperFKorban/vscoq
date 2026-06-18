@@ -26,6 +26,7 @@ val end_loc : t -> int
 
 val range_of_loc : t -> Loc.t -> Range.t
 val word_at_position: t -> Position.t -> string option
+val completion_fragment_loc_at_position: t -> Position.t -> int * string
 val completion_fragment_at_position: t -> Position.t -> string
 val string_in_range: t -> int -> int -> string
 

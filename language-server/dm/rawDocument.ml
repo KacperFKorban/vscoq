@@ -106,7 +106,7 @@ let is_completion_char = function
   | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '_' | '\'' | '.' -> true
   | _ -> false
 
-let completion_fragment_at_position raw pos : string =
+let completion_fragment_loc_at_position raw pos : int * string =
   try
     let stop = loc_of_position raw pos in
     let rec find_start i =
@@ -115,9 +115,12 @@ let completion_fragment_at_position raw pos : string =
       else i
     in
     let start = find_start stop in
-    String.sub raw.text start (stop - start)
+    start, String.sub raw.text start (stop - start)
   with _ ->
-    ""
+    0, ""
+
+let completion_fragment_at_position raw pos : string =
+  snd (completion_fragment_loc_at_position raw pos)
 
 let string_in_range raw start end_ =
   try

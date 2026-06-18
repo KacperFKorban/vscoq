@@ -407,15 +407,15 @@ let rocqtopStepForward params =
       let events = Dm.DocumentManager.interpret_to_next () in
       inject_dm_events (uri,events) 
 
-  let make_CompletionItem i item : CompletionItem.t = 
-    let (label, insertText, typ, path) = Dm.CompletionItems.pp_completion_item item in
+  let make_CompletionItem fragment i item : CompletionItem.t = 
+    let (label, insertText, typ, path) = Dm.CompletionItems.pp_completion_item ~fragment item in
     CompletionItem.create
       ~label
       ~insertText
       ~detail:typ
       ~documentation:(`String ("Path: " ^ path))
       ~sortText:(Printf.sprintf "%5d" i)
-      ?filterText:(if label == insertText then None else Some (insertText))
+      ?filterText:(if label = insertText then None else Some label)
       ()
 
 let textDocumentCompletion id params =
@@ -429,7 +429,8 @@ let textDocumentCompletion id params =
   match Hashtbl.find_opt states (DocumentUri.to_path uri) with
   | None -> log (fun () -> "[textDocumentCompletion]ignoring event on non existent document"); Error( {message="Document does not exist"; code=None} ), []
   | Some { st } -> 
-    let items = List.mapi make_CompletionItem (Dm.DocumentManager.get_completions st position) in
+    let fragment = Dm.RawDocument.completion_fragment_at_position (Dm.DocumentManager.Internal.raw_document st) position in
+    let items = List.mapi (make_CompletionItem fragment) (Dm.DocumentManager.get_completions st position) in
     return_completion ~isIncomplete:false ~items, []
 
 let documentSymbol id params =

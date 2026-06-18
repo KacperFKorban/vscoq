@@ -449,8 +449,10 @@ let about st pos ~pattern =
   QueryManager.about ~doc_id:(Document.id st.document) ~vs ~pattern
 
 let get_completions st pos =
-  let fragment = RawDocument.completion_fragment_at_position (Document.raw_document st.document) pos in
-  let vs = rocq_state_for st pos in
+  let fragment_start, fragment = RawDocument.completion_fragment_loc_at_position (Document.raw_document st.document) pos in
+  let sentence = Document.find_sentence_before st.document fragment_start in
+  let vs = Option.map (fun x -> Utilities.get_vernac_state x.Document.checked) sentence in
+  let vs = Option.default st.init_vs @@ Option.flatten vs in
   QueryManager.get_completions ~doc_id:(Document.id st.document) ~vs ~fragment
 
 (* Ignore nested proofs option (lives in STM) instead of failing with

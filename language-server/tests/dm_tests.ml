@@ -45,6 +45,32 @@ let%test_unit "parse.init" =
   [%test_eq: int list] positions [ 0; 22 ];
   check_no_diag st
 
+let%test_unit "completion.fragment_after_qualified_prefix" =
+  let doc = RawDocument.create "eapply Nat." in
+  let pos = RawDocument.position_of_loc doc (RawDocument.end_loc doc) in
+  let start, fragment = RawDocument.completion_fragment_loc_at_position doc pos in
+  [%test_eq: int] start 7;
+  [%test_eq: string] fragment "Nat."
+
+let%test_unit "completion.after_qualified_prefix_in_proof" =
+  let text = "Lemma test : 0 = 0.\nProof.\neapply Nat." in
+  let st, init_events = em_init_test_doc ~text in
+  let events = DocumentManager.interpret_to_end () in
+  let todo = Sel.Todo.(add init_events events) in
+  let st = handle_dm_events todo st in
+  let doc = Document.raw_document @@ DocumentManager.Internal.document st in
+  let pos = RawDocument.position_of_loc doc (RawDocument.end_loc doc) in
+  let completions = DocumentManager.get_completions st pos in
+  [%test_eq: bool] (not (List.is_empty completions)) true;
+  let matches_nat item =
+    let label, _insert_text, _typ, path = CompletionItems.pp_completion_item ~fragment:"Nat." item in
+    String.is_prefix label ~prefix:"Nat." || Option.is_some (String.substr_index path ~pattern:".Nat")
+  in
+  [%test_eq: bool] (List.for_all completions ~f:matches_nat) true;
+  let label, insert_text, _typ, _path = CompletionItems.pp_completion_item ~fragment:"Nat." (List.hd_exn completions) in
+  [%test_eq: bool] (String.is_prefix label ~prefix:"Nat.") true;
+  [%test_eq: bool] (String.is_prefix insert_text ~prefix:"Nat.") false
+
 let%test_unit "parse.insert" =
   let st, init_events = em_init_test_doc ~text:"Definition x := true. Definition y := false." in
   let st = insert_text st ~loc:0 ~text:"Definition z := 0. " in

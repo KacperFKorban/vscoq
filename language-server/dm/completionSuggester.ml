@@ -327,6 +327,21 @@ module NameBased = struct
 
   let item_name item = Pp.string_of_ppcmds (pr_global item.CompletionItems.ref)
 
+  let has_dot s =
+    String.contains s '.'
+
+  let matches_qualified_fragment fragment name =
+    starts_with name fragment || contains name ("." ^ fragment)
+
+  let matches_fragment fragment item =
+    if fragment = "" || not (has_dot fragment) then true
+    else
+      let name = item_name item in
+      let short_name = suffix_after_last_dot name in
+      let path = string_of_path item.CompletionItems.path in
+      let qualified_name = if path = "" then short_name else path ^ "." ^ short_name in
+      matches_qualified_fragment fragment name || matches_qualified_fragment fragment qualified_name
+
   let score_name fragment name =
     if fragment = "" then 4
     else
@@ -384,6 +399,7 @@ let get_goal_type_opt env Proof.{ goals; sigma; _ } =
 let get_completion_items env proof lemmas (options: Settings.Completion.t) ~fragment =
   try 
     let open Settings.Completion.RankingAlgoritm in
+    let lemmas = List.filter (NameBased.matches_fragment fragment) lemmas in
     match options.algorithm with
     | NameBased -> NameBased.rank fragment lemmas
     | SplitTypeIntersection | StructuredSplitUnification ->
