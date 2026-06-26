@@ -304,6 +304,24 @@
             "description": "Include info in diagnostics"
           }
         }
+      },
+      {
+        "title": "LLM Code Lens",
+        "type": "object",
+        "properties": {
+          "vsrocq.llmCodeLens.enable": {
+            "scope": "window",
+            "type": "boolean",
+            "default": true,
+            "description": "Show a Code Lens above admitted Rocq lemmas and theorems for LLM-based statement review."
+          },
+          "vsrocq.llmCodeLens.command": {
+            "scope": "window",
+            "type": "string",
+            "default": "workbench.action.chat.open",
+            "description": "VS Code command invoked by the admitted-lemma LLM Code Lens. The generated prompt is also copied to the clipboard before this command runs."
+          }
+        }
       }
     ],
     "commands": [
@@ -427,6 +445,11 @@
         "title": "Interrupt",
         "category": "Rocq",
         "icon": "$(stop-circle)"
+      },
+      {
+        "command": "extension.rocq.llm.reviewLemma",
+        "title": "Ask LLM to Review Lemma",
+        "category": "Rocq"
       }
     ],
     "menus": {

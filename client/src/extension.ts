@@ -29,6 +29,7 @@ import {
 import Client from "./client";
 import { updateServerOnConfigurationChange } from "./configuration";
 import { initializeDecorations } from "./Decorations";
+import LlmCodeLensProvider, { buildReviewPrompt } from "./LlmCodeLensProvider";
 import {
     sendInterpretToEnd,
     sendInterpretToPoint,
@@ -215,6 +216,11 @@ export function activate(context: ExtensionContext) {
         // Create the language client and start the client.
         client = new Client(serverOptions, clientOptions);
 
+        const llmCodeLensProvider = new LlmCodeLensProvider(getDocumentProofs);
+        context.subscriptions.push(
+            languages.registerCodeLensProvider("rocq", llmCodeLensProvider),
+        );
+
         //register the search view provider
         const searchProvider = new SearchViewProvider(
             context.extensionUri,
@@ -377,6 +383,40 @@ export function activate(context: ExtensionContext) {
             GoalPanel.displayProofView(context.extensionUri, editor);
         });
 
+        context.subscriptions.push(
+            commands.registerCommand(
+                "extension.rocq.llm.reviewLemma",
+                async (statement: string) => {
+                    if (
+                        typeof statement !== "string" ||
+                        statement.trim() === ""
+                    ) {
+                        window.showInformationMessage(
+                            "Run this command from an admitted lemma Code Lens.",
+                        );
+                        return;
+                    }
+
+                    const prompt = buildReviewPrompt(statement);
+                    const command = workspace
+                        .getConfiguration("vsrocq.llmCodeLens")
+                        .get<string>("command", "workbench.action.chat.open");
+
+                    await env.clipboard.writeText(prompt);
+
+                    try {
+                        await commands.executeCommand(command, {
+                            query: prompt,
+                        });
+                    } catch (err) {
+                        window.showInformationMessage(
+                            `The LLM review prompt was copied to the clipboard, but VsRocq could not run '${command}'.`,
+                        );
+                    }
+                },
+            ),
+        );
+
         client.onNotification("prover/updateHighlights", (notification) => {
             client.saveHighlights(
                 notification.uri,
@@ -506,6 +546,18 @@ Path: \`${rocqTM.getVsRocqTopPath()}\`
 
                     if (event.affectsConfiguration("vsrocq.goals.maxDepth")) {
                         GoalPanel.changeGoalDisplayDepth();
+                    }
+
+                    if (event.affectsConfiguration("vsrocq.llmCodeLens")) {
+                        llmCodeLensProvider.refresh();
+                    }
+                }),
+            );
+
+            context.subscriptions.push(
+                workspace.onDidChangeTextDocument((event) => {
+                    if (event.document.languageId === "rocq") {
+                        llmCodeLensProvider.refresh();
                     }
                 }),
             );
