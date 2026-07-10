@@ -225,6 +225,19 @@ let%test_unit "parse.feedback_attached_before_execution" =
     D (s1.id,Warning,".*level-0-notation-not-closed*")
   ]
 
+let%test_unit "diagnostic.deprecated_dirpath_range" =
+  let st, init_events = em_init_test_doc ~text:"Require Coq.Vectors.Vector." in
+  let st, (s1, ()) = dm_parse st (P O) in
+  let events = DocumentManager.interpret_to_end () in
+  let todo = Sel.Todo.(add init_events events) in
+  let st = handle_dm_events todo st in
+  check_diag st [
+    D (s1.id,Warning,".*deprecated-from-Coq.*")
+  ];
+  let warning = Stdlib.List.hd @@ DocumentManager.all_diagnostics st in
+  [%test_eq: int] 8 warning.range.start.character;
+  [%test_eq: int] 26 warning.range.end_.character
+
 let%test_unit "edit.shift_warning_in_sentence" =
   let st, init_events = em_init_test_doc ~text:"#[deprecated(note = \"foo\", since = \"foo\")] Definition x := true. Definition y := x." in
   let st, (s1, (s2, ())) = dm_parse st (P(P O)) in
