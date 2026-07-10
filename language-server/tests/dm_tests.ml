@@ -349,3 +349,30 @@ let%test_unit "documentProofs.theorem_without_proof_no_ltac" =
   let st = handle_dm_events todo st in
   let proofs = DocumentManager.get_document_proofs st in
   [%test_eq: int] (List.length proofs) 1
+
+let range_start_character json =
+  Yojson.Safe.Util.(json |> member "start" |> member "character" |> to_int)
+
+let range_end_character json =
+  Yojson.Safe.Util.(json |> member "end" |> member "character" |> to_int)
+
+let%test_unit "documentProofs.qed_step_range" =
+  let st, init_events = em_init_test_doc ~text:"Theorem foo : True. Proof. exact I. Qed." in
+  let st, (_s1, (_s2, (_s3, (_s4, ())))) = dm_parse st (P(P(P(P O)))) in
+  let events = DocumentManager.interpret_to_end () in
+  let todo = Sel.Todo.(add init_events events) in
+  let st = handle_dm_events todo st in
+  let proofs = DocumentManager.get_document_proofs st in
+  [%test_eq: int] (List.length proofs) 1;
+  let proof = List.hd_exn proofs in
+  let json = Protocol.ProofState.yojson_of_proof_block proof in
+  let steps = Yojson.Safe.Util.(json |> member "steps" |> to_list) in
+  [%test_eq: int] (List.length steps) 3;
+  let qed = List.last_exn steps in
+  [%test_eq: string] "Qed." Yojson.Safe.Util.(qed |> member "tactic" |> to_string);
+  let qed_range = Yojson.Safe.Util.(qed |> member "range") in
+  [%test_eq: int] 36 (range_start_character qed_range);
+  [%test_eq: int] 40 (range_end_character qed_range);
+  let block_range = Yojson.Safe.Util.(json |> member "range") in
+  [%test_eq: int] 20 (range_start_character block_range);
+  [%test_eq: int] 40 (range_end_character block_range)
