@@ -36,6 +36,16 @@ let edit_text st ~start ~stop ~text =
 let insert_text st ~loc ~text =
   edit_text st ~start:loc ~stop:loc ~text
 
+let%test_unit "raw_document.word_at_sentence_period" =
+  let raw = RawDocument.create "Definition a: Type := nat * nat." in
+  let pos = Lsp.Types.Position.create ~line:0 ~character:31 in
+  [%test_eq: string option] None (RawDocument.word_at_position raw pos)
+
+let%test_unit "raw_document.word_before_sentence_period" =
+  let raw = RawDocument.create "Definition a: Type := nat * nat." in
+  let pos = Lsp.Types.Position.create ~line:0 ~character:28 in
+  [%test_eq: string option] (Some "nat") (RawDocument.word_at_position raw pos)
+
 let%test_unit "parse.init" =
   let st, init_events = em_init_test_doc ~text:"Definition x := true. Definition y := false." in
   let doc = Document.raw_document @@ DocumentManager.Internal.document st in
