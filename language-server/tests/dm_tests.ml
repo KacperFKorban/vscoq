@@ -36,6 +36,20 @@ let edit_text st ~start ~stop ~text =
 let insert_text st ~loc ~text =
   edit_text st ~start:loc ~stop:loc ~text
 
+let%test_unit "raw_document.non_bmp_positions_are_utf16" =
+  let raw = RawDocument.create "Notation \"🦔🦔🦔\" := 1." in
+  let pos = RawDocument.position_of_loc raw 29 in
+  [%test_eq: int] 0 pos.line;
+  [%test_eq: int] 23 pos.character;
+  [%test_eq: int] 29 (RawDocument.loc_of_position raw (Lsp.Types.Position.create ~line:0 ~character:23))
+
+let%test_unit "raw_document.bmp_positions_are_single_utf16_units" =
+  let raw = RawDocument.create "Notation \"ééé\" := 1." in
+  let pos = RawDocument.position_of_loc raw 23 in
+  [%test_eq: int] 0 pos.line;
+  [%test_eq: int] 20 pos.character;
+  [%test_eq: int] 23 (RawDocument.loc_of_position raw (Lsp.Types.Position.create ~line:0 ~character:20))
+
 let%test_unit "parse.init" =
   let st, init_events = em_init_test_doc ~text:"Definition x := true. Definition y := false." in
   let doc = Document.raw_document @@ DocumentManager.Internal.document st in
