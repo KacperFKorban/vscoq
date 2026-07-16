@@ -26,6 +26,23 @@ type completion_item = {
   mutable debug_info : string;
 }
 
+type grammar_completion = {
+  label : string;
+  insert_text : string;
+  replacement_range : Lsp.Types.Range.t option;
+}
+
+type t =
+  | Declaration of completion_item
+  | Grammar of grammar_completion
+
+let mk_grammar_completion ~label ~insert_text =
+  Grammar { label; insert_text; replacement_range = None }
+
+let with_replacement_range range = function
+  | Declaration _ as item -> item
+  | Grammar item -> Grammar { item with replacement_range = Some range }
+
 let mk_completion_item sigma ref env (c : constr) : completion_item = 
   {
     ref = ref;

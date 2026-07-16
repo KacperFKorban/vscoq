@@ -36,6 +36,118 @@ let edit_text st ~start ~stop ~text =
 let insert_text st ~loc ~text =
   edit_text st ~start:loc ~stop:loc ~text
 
+let%test_unit "completion.replaces_partial_phrase" =
+  let raw = RawDocument.create "  Program Def" in
+  let position = RawDocument.position_of_loc raw (RawDocument.end_loc raw) in
+  let range = RawDocument.completion_range_at_position raw position in
+  [%test_eq: int] range.start.character 2;
+  [%test_eq: int] range.end_.character 13
+
+let%test_unit "completion.grammar_productions_become_snippets" =
+  let grammar = {|[ LEFTA
+  [ IDENT "Definition"; ident; ":"; term
+  | IDENT "Set"; setting_name; OPT option_setting ] ]|} in
+  let completions = GrammarCompletion.completions_of_printed_grammar grammar in
+  [%test_eq: (string * string) list] completions
+    [ ("Definition <ident> : <term>.", "Definition ${1:ident} : ${2:term}.");
+      ("Set <setting_name>.", "Set ${1:setting_name}.");
+      ("Set <setting_name> <option_setting>.",
+       "Set ${1:setting_name} ${2:option_setting}.") ]
+
+let%test_unit "completion.optional_group_has_both_versions" =
+  let grammar =
+    {|[ LEFTA [ IDENT "Proof"; OPT [ "using"; section_subset_expr ] ] ]|}
+  in
+  [%test_eq: (string * string) list]
+    (GrammarCompletion.completions_of_printed_grammar grammar)
+    [ ("Proof.", "Proof.");
+      ("Proof using <section_subset_expr>.",
+       "Proof using ${1:section_subset_expr}.") ]
+
+let%test_unit "completion.nested_alternatives_are_placeholders" =
+  let grammar = {|[ LEFTA [ IDENT "Load"; [ IDENT | ne_string ] ] ]|} in
+  [%test_eq: (string * string) list]
+    (GrammarCompletion.completions_of_printed_grammar grammar)
+    [ ("Load <choice>.", "Load ${1:choice}.") ]
+
+let%test_unit "completion.recursively_inlines_nonterminals" =
+  let open GrammarCompletion in
+  let definitions =
+    [ "export_token", [[Literal "Import"]; [Literal "Export"]];
+      "target", [[Hole "qualid"]] ]
+  in
+  let productions = [[Literal "Require"; Hole "export_token"; Hole "target"]] in
+  [%test_eq: (string * string) list]
+    (completion_phrases_of_productions definitions productions)
+    [ ("Require Export <qualid>.", "Require Export ${1:qualid}.");
+      ("Require Import <qualid>.", "Require Import ${1:qualid}.") ]
+
+let%test_unit "completion.recursive_grammar_is_bounded" =
+  let open GrammarCompletion in
+  let definitions =
+    [ "loop", [[Literal "again"; Hole "loop"]] ]
+  in
+  let productions = [[Literal "Start"; Hole "loop"]] in
+  [%test_eq: (string * string) list]
+    (completion_phrases_of_productions definitions productions)
+    [ ("Start again <loop>.", "Start again ${1:loop}.") ]
+
+let%test_unit "completion.expansion_result_count_is_bounded" =
+  let open GrammarCompletion in
+  let definitions =
+    [ "choice", [[Literal "one"]; [Literal "two"]; [Literal "three"]] ]
+  in
+  let productions = [[Literal "Pick"; Hole "choice"; Hole "choice"]] in
+  [%test_eq: int]
+    (List.length
+       (completion_phrases_of_productions ~max_results:4 definitions productions))
+    4
+
+let%test_unit "completion.command_starters_survive_expansion_limit" =
+  let open GrammarCompletion in
+  let definitions =
+    [ "command", [[Literal "First"]; [Literal "Desired"]];
+      "choice", [[Literal "one"]; [Literal "two"]; [Literal "three"]] ]
+  in
+  let productions = [[Hole "command"; Hole "choice"]] in
+  let completions =
+    completion_phrases_of_productions ~max_results:2 definitions productions
+  in
+  [%test_eq: bool]
+    (Stdlib.List.exists
+       (fun (label, _) -> Stdlib.String.equal label "Desired one.")
+       completions)
+    true
+
+let%test_unit "completion.uses_live_grammar" =
+  let text = "Tactic Notation \"frobnicate\" := idtac." in
+  let st, init_events = em_init_test_doc ~text in
+  let events = DocumentManager.interpret_to_end () in
+  let todo = Sel.Todo.(add init_events events) in
+  let st = handle_dm_events todo st in
+  let raw = Document.raw_document (DocumentManager.Internal.document st) in
+  let position = RawDocument.position_of_loc raw (RawDocument.end_loc raw) in
+  let completions = DocumentManager.get_completions st position in
+  let contains_extension = Stdlib.List.exists (function
+      | CompletionItems.Grammar { label = "frobnicate."; _ } -> true
+      | _ -> false) completions
+  in
+  let contains_definition = Stdlib.List.exists (function
+      | CompletionItems.Grammar { label; _ } ->
+        String.length label > 11 &&
+        Stdlib.String.equal (Stdlib.String.sub label 0 11) "Definition "
+      | _ -> false) completions
+  in
+  let contains_require_import = Stdlib.List.exists (function
+      | CompletionItems.Grammar { label; _ } ->
+        String.length label > 15 &&
+        Stdlib.String.equal (Stdlib.String.sub label 0 15) "Require Import "
+      | _ -> false) completions
+  in
+  [%test_eq: bool * bool * bool]
+    (contains_extension, contains_definition, contains_require_import)
+    (true, true, true)
+
 let%test_unit "parse.init" =
   let st, init_events = em_init_test_doc ~text:"Definition x := true. Definition y := false." in
   let doc = Document.raw_document @@ DocumentManager.Internal.document st in

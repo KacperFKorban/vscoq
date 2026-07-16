@@ -17,7 +17,6 @@ open Lsp.Types
 open Protocol
 open Protocol.LspWrapper
 open Protocol.Printing
-open CompletionItems
 
 (** The document manager holds the view that Rocq has of the currently open
     states. It makes it easy for IDEs to handle text edits, navigate
@@ -105,7 +104,7 @@ val all_diagnostics : state -> Diagnostic.t list
 (** all_diagnostics [doc] returns the diagnostics corresponding to the sentences
     that have been executed in [doc]. *)
 
-val get_completions : state -> Position.t -> completion_item list 
+val get_completions : state -> Position.t -> CompletionItems.t list
 
 val handle_event : event -> state -> (state,event) handled_event
 (** handles events and returns a new state if it was updated. On top of the next events, it also returns info

@@ -102,6 +102,29 @@ let word_at_position raw pos : string option =
   with _ ->
     None
 
+let completion_range_at_position raw pos =
+  let stop = loc_of_position raw pos in
+  let rec find_start i =
+    if i = 0 then 0
+    else
+      match raw.text.[i - 1] with
+      | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '_' | '\'' | ' ' | '\t' ->
+        find_start (i - 1)
+      | _ -> i
+  in
+  let rec skip_whitespace i =
+    if i < stop then
+      match raw.text.[i] with
+      | ' ' | '\t' -> skip_whitespace (i + 1)
+      | _ -> i
+    else i
+  in
+  let start = skip_whitespace (find_start stop) in
+  Lsp.Types.Range.{
+    start = position_of_loc raw start;
+    end_ = pos;
+  }
+
 let string_in_range raw start end_ =
   try
     String.sub raw.text start (end_ - start)

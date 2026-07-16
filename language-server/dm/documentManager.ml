@@ -456,8 +456,10 @@ let about st pos ~pattern =
   QueryManager.about ~doc_id:(Document.id st.document) ~vs ~pattern
 
 let get_completions st pos =
+  let range = RawDocument.completion_range_at_position (Document.raw_document st.document) pos in
   let vs = rocq_state_for st pos in
   QueryManager.get_completions ~doc_id:(Document.id st.document) ~vs
+  |> List.map (CompletionItems.with_replacement_range range)
 
 (* Ignore nested proofs option (lives in STM) instead of failing with
    anomaly when it is set in a .vo we Require.

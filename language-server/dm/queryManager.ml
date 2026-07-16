@@ -231,11 +231,13 @@ let print ~vs ~pattern =
 
 let get_completions ~vs =
   let settings = ExecutionManager.get_options () in
+  Vernacstate.unfreeze_full_state vs;
+  let grammar = GrammarCompletion.get_completions () in
   match CompletionSuggester.get_completions settings.completion_options vs with
   | None -> 
-      log (fun () -> "No completions available");
-      []
-  | Some lemmas -> lemmas
+      log (fun () -> "No declaration completions available");
+      grammar
+  | Some lemmas -> grammar @ List.map (fun item -> CompletionItems.Declaration item) lemmas
 
 (**************************************************************************)
 
