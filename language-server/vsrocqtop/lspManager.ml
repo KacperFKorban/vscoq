@@ -313,10 +313,21 @@ let textDocumentDidChange params =
   match Hashtbl.find_opt states (DocumentUri.to_path uri) with
     | None -> log (fun () -> "[textDocumentDidChange] ignoring event on non-existing document"); []
     | Some { st; visible } ->
-      let mk_text_edit TextDocumentContentChangeEvent.{ range; text } =
-        Option.get range, text
+      let raw = Dm.DocumentManager.Internal.raw_document st in
+      let normalize_change (raw, edits) TextDocumentContentChangeEvent.{ range; text } =
+        let range = match range with
+          | Some range -> range
+          | None ->
+            let start = Position.create ~line:0 ~character:0 in
+            let end_ = Dm.RawDocument.position_of_loc raw (Dm.RawDocument.end_loc raw) in
+            Range.create ~start ~end_
+        in
+        let edit = range, text in
+        let raw, _ = Dm.RawDocument.apply_text_edit raw edit in
+        raw, edit :: edits
       in
-      let text_edits = List.map mk_text_edit contentChanges in
+      let _, text_edits = List.fold_left normalize_change (raw, []) contentChanges in
+      let text_edits = List.rev text_edits in
       let st, events = Dm.DocumentManager.apply_text_edits st text_edits in
       replace_state (DocumentUri.to_path uri) st visible;
       update_view uri st;
