@@ -54,6 +54,9 @@ val highlight :
   Lsp.Types.Position.t ->
   Lsp.Types.Range.t list
 
+val source_of_dune_rule :
+  file:string -> Yojson.Safe.t -> string option
+
 val jump_to_definition :
   Document.document ->
   Vernacstate.t ->

@@ -188,6 +188,111 @@ let highlight document pos =
     List.map (RawDocument.range_of_loc raw) locs
   | Some token -> log (fun () -> "highlight: token at cursor is not an identifier: " ^ Tok.extract_string false token); []
 
+let source_of_dune_rule ~file = function
+  | `List [`Assoc fields] ->
+    begin match List.assoc_opt "action" fields, List.assoc_opt "deps" fields with
+    | Some (`List [`String "copy"; `String source; `String copied_file]), Some (`List deps)
+      when String.equal file copied_file ->
+      let source_dep = function
+        | `Assoc fields ->
+          begin match List.assoc_opt "File" fields with
+          | Some (`List [`String "In_source_tree"; `String file]) -> String.equal source file
+          | _ -> false
+          end
+        | _ -> false
+      in
+      if List.exists source_dep deps then Some source else None
+    | _ -> None
+    end
+  | _ -> None
+
+let path_relative_to_cwd file =
+  if Filename.is_relative file then Some file else
+  let cwd = Unix.getcwd () in
+  let prefix = if cwd = Filename.dir_sep then cwd else cwd ^ Filename.dir_sep in
+  let length = String.length prefix in
+  if String.length file >= length && String.sub file 0 length = prefix
+  then Some (String.sub file length (String.length file - length))
+  else None
+
+let path_to_absolute file =
+  if Filename.is_relative file then Filename.concat (Unix.getcwd ()) file else file
+
+let dune_sources = Hashtbl.create 7
+
+(** Resolve [dune] beside an absolute [vsrocqtop] executable, then fall back
+    to [dune] on the inherited [PATH]. *)
+let resolve_dune_command () =
+  let environment = Unix.environment () in
+  if Filename.is_relative Sys.executable_name then
+    (* If [vsrocqtop] location is relative, return [dune] with the inherited
+    environment so the system [PATH] resolves it. *)
+    ("dune", environment)
+  else
+  let directory = Filename.dirname Sys.executable_name in
+  let dune = Filename.concat directory "dune" in
+  (* If we find the executable at [dune], then return it with [directory]
+     prepended to its [PATH] so dune also finds the sibling [rocq]. *)
+  if Sys.file_exists dune then begin
+    let path =
+      match Sys.getenv_opt "PATH" with
+      | Some path when path <> "" -> directory ^ ":" ^ path
+      | _ -> directory
+    in
+    let found_path = ref false in
+    let environment =
+      Array.map (fun variable ->
+        if String.starts_with ~prefix:"PATH=" variable then begin
+          found_path := true;
+          "PATH=" ^ path
+        end else
+          variable)
+        environment
+    in
+    let environment =
+      if !found_path then environment else Array.append environment [| "PATH=" ^ path |]
+    in
+    (dune, environment)
+  end else
+    (* If the executable is not beside [vsrocqtop], return [dune] with the
+         inherited environment so the system [PATH] resolves it. *)
+    ("dune", environment)
+
+let dune_source_of_file file =
+  try
+    let dune, environment = resolve_dune_command () in
+    let stdout, stdin, stderr = Unix.open_process_args_full dune
+      [| dune; "rules"; "--display=quiet"; "--format=json"; file |] environment in
+    let rule =
+      try Some (Yojson.Safe.from_channel stdout)
+      with _ -> None
+    in
+    ignore @@ In_channel.input_all stderr;
+    begin match Unix.close_process_full (stdout, stdin, stderr), rule with
+    | Unix.WEXITED 0, Some rules -> source_of_dune_rule ~file rules
+    | _ -> None
+    end
+  with Unix.Unix_error _ | Sys_error _ -> None
+
+let prefer_dune_source file =
+  match Hashtbl.find_opt dune_sources file with
+  | Some source -> source
+  | None ->
+    begin match path_relative_to_cwd file with
+    | None -> file
+    | Some relative_file ->
+      begin match dune_source_of_file relative_file with
+      | None -> file
+      | Some source ->
+        let source = path_to_absolute source in
+        if Sys.file_exists source then begin
+          Hashtbl.replace dune_sources file source;
+          source
+        end else
+          file
+      end
+    end
+
 [%%if rocq ="8.18" || rocq ="8.19" || rocq ="8.20"]
 let jump_to_definition _ _ _ = None
 [%%else]
@@ -297,7 +402,8 @@ let check ~doc_id ~vs ~pattern =
 let jump_to_definition document vs pos =
   ProverThread.try_run ~doc_id:(Document.id document) ~name:"jump_to_definition" ~timeout
     (fun () -> jump_to_definition document vs pos) |>
-  to_option |> Option.flatten
+  to_option |> Option.flatten |>
+  Option.map (fun (range, file) -> range, prefer_dune_source file)
 
 let locate ~doc_id ~vs ~pattern =
   ProverThread.try_run ~doc_id ~name:"locate" ~timeout (fun () -> locate ~vs ~pattern) |>
