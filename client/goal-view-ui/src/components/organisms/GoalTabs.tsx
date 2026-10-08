@@ -3,7 +3,7 @@ import {
     VSCodePanelTab,
     VSCodePanelView,
 } from "@vscode/webview-ui-toolkit/react";
-import { FunctionComponent, useLayoutEffect, useRef } from "react";
+import { FunctionComponent, useRef } from "react";
 
 import { Goal } from "../../types";
 import GoalBlock from "../molecules/GoalBlock";
@@ -19,11 +19,6 @@ type GoalSectionProps = {
 const goalSection: FunctionComponent<GoalSectionProps> = (props) => {
     const { goals, maxDepth, helpMessageHandler } = props;
     const goalRefs = useRef<Array<HTMLDivElement | null>>([]);
-    useLayoutEffect(() => {
-        goalRefs.current = goalRefs.current.slice(0, goals.length);
-        setTimeout(() => scrollToBottomOfGoal(0), 200);
-    }, [goals]);
-
     const scrollToBottomOfGoal = (i: number) => {
         if (goalRefs.current) {
             if (goalRefs.current[i]) {

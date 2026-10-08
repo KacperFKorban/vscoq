@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import {
+    useCallback,
+    useEffect,
+    useLayoutEffect,
+    useRef,
+    useState,
+} from "react";
 import "./App.css";
 
 import ProofViewPage from "./components/templates/ProofViewPage";
@@ -10,6 +16,11 @@ import {
     VSCodeMessage,
 } from "./types";
 
+import {
+    captureScrollAnchor,
+    restoreScrollAnchor,
+    ScrollAnchor,
+} from "./utilities/scrollAnchor";
 import { vscode } from "./utilities/vscode";
 
 const app = () => {
@@ -20,6 +31,7 @@ const app = () => {
     >("List");
     const [goalDepth, setGoalDepth] = useState<number>(10);
     const [helpMessage, setHelpMessage] = useState<string>("");
+    const pendingScroll = useRef<ScrollAnchor | null>(null);
 
     const handleMessage = useCallback((msg: { data: VSCodeMessage }) => {
         switch (msg.data.command) {
@@ -30,6 +42,7 @@ const app = () => {
                 setGoalDepth(msg.data.maxDepth);
                 break;
             case "renderProofView":
+                pendingScroll.current = captureScrollAnchor();
                 const allGoals = msg.data.proofView.proof;
                 const messages = msg.data.proofView.messages;
                 setMessages(messages);
@@ -77,6 +90,7 @@ const app = () => {
                 );
                 break;
             case "reset":
+                pendingScroll.current = null;
                 setMessages([]);
                 setGoals(null);
                 break;
@@ -85,12 +99,42 @@ const app = () => {
 
     useEffect(() => {
         window.addEventListener("message", handleMessage);
+        const cancelRestore = () => {
+            pendingScroll.current = null;
+        };
+        for (const event of [
+            "wheel",
+            "touchmove",
+            "pointerdown",
+            "keydown",
+            "click",
+        ]) {
+            window.addEventListener(event, cancelRestore, { capture: true });
+        }
         vscode.postMessage({ command: "pollGoals" });
         vscode.postMessage({ command: "pollDisplaySettings" });
         return () => {
             window.removeEventListener("message", handleMessage);
+            for (const event of [
+                "wheel",
+                "touchmove",
+                "pointerdown",
+                "keydown",
+                "click",
+            ]) {
+                window.removeEventListener(event, cancelRestore, {
+                    capture: true,
+                });
+            }
         };
     }, [handleMessage]);
+
+    useLayoutEffect(() => {
+        if (pendingScroll.current) {
+            restoreScrollAnchor(pendingScroll.current);
+            pendingScroll.current = null;
+        }
+    }, [goals]);
 
     const collapseGoalHandler = (id: string, key: ProofViewGoalsKey) => {
         const newGoals = goals![key].map((goal) => {

@@ -4,17 +4,19 @@ import { PpDisplay, PpString } from "pp-display";
 import classes from "./PpString.module.css";
 
 type GoalProps = {
+    goalId: string;
     goal: PpString;
     maxDepth: number;
     setHelpMessage: (message: string) => void;
 };
 
 const goal: FunctionComponent<GoalProps> = (props) => {
-    const { goal, maxDepth, setHelpMessage } = props;
+    const { goalId, goal, maxDepth, setHelpMessage } = props;
 
     return (
         <div
             className={classes.Goal}
+            data-proof-anchor={JSON.stringify([goalId, "goal"])}
             onMouseOver={() => {
                 if (setHelpMessage !== undefined) {
                     setHelpMessage(

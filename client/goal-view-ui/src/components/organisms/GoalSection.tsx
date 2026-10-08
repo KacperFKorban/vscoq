@@ -1,4 +1,4 @@
-import React, { FunctionComponent, useEffect, useRef } from "react";
+import React, { FunctionComponent } from "react";
 
 import { CollapsibleGoal } from "../../types";
 import EmptyState from "../atoms/EmptyState";
@@ -31,18 +31,6 @@ const goalSection: FunctionComponent<GoalSectionProps> = (props) => {
         maxDepth,
         helpMessageHandler,
     } = props;
-    const emptyMessageRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        if (emptyMessageRef.current) {
-            emptyMessageRef.current.scrollIntoView({
-                behavior: "smooth",
-                block: "end",
-                inline: "nearest",
-            });
-        }
-    }, [goals]);
-
     //This case should not happen
     if (goals === null) {
         return null;
@@ -56,7 +44,6 @@ const goalSection: FunctionComponent<GoalSectionProps> = (props) => {
                     <div className={classes.HintText}>
                         Next unfocused goals (focus with bullet):
                     </div>
-                    <div ref={emptyMessageRef} />
                     <GoalCollapsibleSection
                         goals={unfocusedGoals}
                         collapseGoalHandler={collapseGoalHandler}
@@ -68,7 +55,6 @@ const goalSection: FunctionComponent<GoalSectionProps> = (props) => {
             ) : (
                 <>
                     <EmptyState message={emptyMessage} icon={emptyIcon} />
-                    <div ref={emptyMessageRef} />
                 </>
             )
         ) : displaySetting === "Tabs" ? (
